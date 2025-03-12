@@ -134,6 +134,8 @@ sql_req_not_prepared(WorkerPid, Sql, Args) ->
 % ====================================================
 
 init(Args) ->
+    _ = process_flag(trap_exit, true),
+    %?LOG_DEBUG("=========================== START db driver ============================", []),
     TConn = erlang:send_after(10, self(), connect),
     {ok, #{connect_arg => Args,
         timer_connect => TConn,
@@ -142,9 +144,9 @@ init(Args) ->
 terminate(_, _State) ->
     ok.
 
-handle_call(_, _, #{connection := undefined}) ->
+handle_call(_, _, #{connection := undefined} = State) ->
     ?LOG_ERROR("auth_hub_pg: no connect to db", []),
-    {error, no_connect};
+    {reply, {error, no_connect}, State};
 handle_call({insert, Statement, Args}, _From, State) ->
     #{connection := Conn} = State,
     Reply = sql_req_prepared(Conn, Statement, Args),
@@ -181,12 +183,19 @@ handle_info(connect, State) -> % initialization
                      ok = parse(Pid),
                      State#{connection := Pid};
                  {error, _Error} ->
-                     % ?LOG_ERROR("db connect error ~p", [Error]),
-                     %  ok = timer:sleep(1000),
-                     TConn1 = erlang:send_after(500, self(), connect),
+                     TConn1 = erlang:send_after(1000, self(), connect),
                      State#{connection := undefined, timer_connect := TConn1}
              end,
     {noreply, State1};
+handle_info({'EXIT', _FromPid, Reason} = Err, #{timer_connect := TConn} = State) when
+        Reason == econnrefused; Reason == timeout ->
+    ?LOG_ERROR("No connect to db, ~p", [Err]),
+    _ = erlang:cancel_timer(TConn),
+    TConn1 = erlang:send_after(10, self(), connect),
+    {noreply, State#{connection := undefined, timer_connect := TConn1}};
+handle_info({'EXIT', FromPid, Reason}, State) ->
+    ?LOG_ERROR("Process EXIT ~p, ~p", [FromPid, Reason]),
+    {stop, Reason, State};
 handle_info(_Data, State) ->
     {noreply, State}.
 
@@ -200,7 +209,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec parse(pid()) -> ok.
 parse(Conn) ->
-    ?LOG_INFO("Parse OK", []),
+    ?LOG_INFO("Successful connect to db. Parse OK", []),
 
     {ok, _} = epgsql:parse(Conn, "get_passhash", "SELECT passhash FROM users WHERE login=$1", [varchar]),
     {ok, _} = epgsql:parse(Conn, "insert_sid", "INSERT INTO sids (login, sid, ts_end) VALUES ($1, $2, $3)", [varchar, varchar, timestamp]),
