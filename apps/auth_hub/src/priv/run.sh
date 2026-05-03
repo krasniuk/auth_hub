@@ -6,7 +6,8 @@ pathFile=$(realpath $0)
 pathDir=$(dirname $pathFile)
 
 cd $pathDir
+cd ../../../../
 
 rebar3 as prod release
-cd ./_build/prod/rel/$appName/bin/
+cd _build/prod/rel/$appName/bin/
 ./$appName console
