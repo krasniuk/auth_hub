@@ -129,12 +129,17 @@ sql_req_not_prepared(WorkerPid, Sql, Args) ->
     gen_server:call(WorkerPid, {sql_req_not_prepared, Sql, Args}).
 
 
+
+
+
+
+
+
 % ====================================================
 % Inverse functions
 % ====================================================
 
 init(Args) ->
-    _ = process_flag(trap_exit, true),
     %?LOG_DEBUG("=========================== START db driver ============================", []),
     TConn = erlang:send_after(10, self(), connect),
     {ok, #{connect_arg => Args,
@@ -169,34 +174,27 @@ handle_call({sql_req_not_prepared, Sql, Args}, _From, State) ->
            end,
     {reply, Resp, State};
 handle_call(Other, _From, State) ->
-    ?LOG_ERROR("Invalid call to gen_server(auth_hub_pg) ~p", [Other]),
+    ?LOG_CRITICAL("Invalid call to gen_server(auth_hub_pg) ~p", [Other]),
     {reply, <<"Invalid req">>, State}.
 
-handle_cast(_Data, State) ->
+handle_cast(Data, State) ->
+    ?LOG_CRITICAL("handle_cast invalid req ~p", [Data]),
     {noreply, State}.
 
-handle_info(connect, State) -> % initialization
-    #{connect_arg := Arg, timer_connect := TConn} = State,
+handle_info(connect, #{connect_arg := Arg, timer_connect := TConn} = State) ->
     _ = erlang:cancel_timer(TConn),
-    State1 = case epgsql:connect(Arg) of
-                 {ok, Pid} ->
-                     ok = parse(Pid),
-                     State#{connection := Pid};
-                 {error, _Error} ->
-                     TConn1 = erlang:send_after(1000, self(), connect),
-                     State#{connection := undefined, timer_connect := TConn1}
-             end,
-    {noreply, State1};
-handle_info({'EXIT', _FromPid, Reason} = Err, #{timer_connect := TConn} = State) when
-        Reason == econnrefused; Reason == timeout ->
-    ?LOG_ERROR("No connect to db, ~p", [Err]),
-    _ = erlang:cancel_timer(TConn),
-    TConn1 = erlang:send_after(10, self(), connect),
-    {noreply, State#{connection := undefined, timer_connect := TConn1}};
-handle_info({'EXIT', FromPid, Reason}, State) ->
-    ?LOG_ERROR("Process EXIT ~p, ~p", [FromPid, Reason]),
-    {stop, Reason, State};
-handle_info(_Data, State) ->
+    case epgsql:connect(Arg ++ [{timeout, 5000}]) of
+        {ok, Pid} ->
+            parse(Pid),
+            ?LOG_INFO("Successful connect to db. Parse OK", []),
+            {noreply, State#{connection := Pid}};
+        {error, Reason} ->
+            ?LOG_ERROR("Db connect error, ~p", [Reason]),
+            TConn1 = erlang:send_after(1000, self(), connect),
+            {noreply, State#{connection := undefined, timer_connect := TConn1}}
+    end;
+handle_info(Data, State) ->
+    ?LOG_CRITICAL("handle_info invalid req ~p", [Data]),
     {noreply, State}.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -209,22 +207,20 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec parse(pid()) -> ok.
 parse(Conn) ->
-    ?LOG_INFO("Successful connect to db. Parse OK", []),
+    {ok, _} = epgsql:parse(Conn, "get_passhash", "SELECT passhash FROM auth_hub.users WHERE login=$1", [varchar]),
+    {ok, _} = epgsql:parse(Conn, "insert_sid", "INSERT INTO auth_hub.sids (login, sid, ts_end) VALUES ($1, $2, $3)", [varchar, varchar, timestamp]),
+    {ok, _} = epgsql:parse(Conn, "get_roles", "SELECT subsystem, role, space FROM auth_hub.roles WHERE login=$1", [varchar]),
+    {ok, _} = epgsql:parse(Conn, "update_sid", "UPDATE auth_hub.sids SET sid=$2, ts_end=$3 WHERE login=$1", [varchar, varchar, timestamp]),
+    {ok, _} = epgsql:parse(Conn, "delete_user", "SELECT * FROM auth_hub.delete_user($1)", [varchar]),
 
-    {ok, _} = epgsql:parse(Conn, "get_passhash", "SELECT passhash FROM users WHERE login=$1", [varchar]),
-    {ok, _} = epgsql:parse(Conn, "insert_sid", "INSERT INTO sids (login, sid, ts_end) VALUES ($1, $2, $3)", [varchar, varchar, timestamp]),
-    {ok, _} = epgsql:parse(Conn, "get_roles", "SELECT subsystem, role, space FROM roles WHERE login=$1", [varchar]),
-    {ok, _} = epgsql:parse(Conn, "update_sid", "UPDATE sids SET sid=$2, ts_end=$3 WHERE login=$1", [varchar, varchar, timestamp]),
-    {ok, _} = epgsql:parse(Conn, "delete_user", "SELECT * FROM delete_user($1)", [varchar]),
-
-    {ok, _} = epgsql:parse(Conn, "create_user", "INSERT INTO users (login, passhash) VALUES ($1, $2)", [varchar, varchar]),
-    {ok, _} = epgsql:parse(Conn, "get_users_all_info", "SELECT u.login, r.subsystem, r.role, r.space FROM roles r RIGHT OUTER JOIN users u ON r.login = u.login", []),
-    {ok, _} = epgsql:parse(Conn, "get_allow_roles", "SELECT s.subsystem, r.role, r.description FROM allow_roles r RIGHT OUTER JOIN allow_subsystems s ON r.subsystem = s.subsystem", []),
-    {ok, _} = epgsql:parse(Conn, "get_allow_subsystem", "SELECT subsystem, description FROM allow_subsystems", []),
-    {ok, _} = epgsql:parse(Conn, "insert_allow_role", "insert into allow_roles (subsystem, role, description) values ($1, $2, $3)", [varchar, varchar, varchar]),
-    {ok, _} = epgsql:parse(Conn, "delete_allow_role", "select * from delete_allow_role($1, $2)", [varchar, varchar]),
-    {ok, _} = epgsql:parse(Conn, "insert_allow_subsystem", "SELECT * FROM create_subsystem($1, $2)", [varchar, varchar]),
-    {ok, _} = epgsql:parse(Conn, "delete_subsystem", "select * from delete_subsystem($1)", [varchar]),
+    {ok, _} = epgsql:parse(Conn, "create_user", "INSERT INTO auth_hub.users (login, passhash) VALUES ($1, $2)", [varchar, varchar]),
+    {ok, _} = epgsql:parse(Conn, "get_users_all_info", "SELECT u.login, r.subsystem, r.role, r.space FROM auth_hub.roles r RIGHT OUTER JOIN auth_hub.users u ON r.login = u.login", []),
+    {ok, _} = epgsql:parse(Conn, "get_allow_roles", "SELECT s.subsystem, r.role, r.description FROM auth_hub.allow_roles r RIGHT OUTER JOIN auth_hub.allow_subsystems s ON r.subsystem = s.subsystem", []),
+    {ok, _} = epgsql:parse(Conn, "get_allow_subsystem", "SELECT subsystem, description FROM auth_hub.allow_subsystems", []),
+    {ok, _} = epgsql:parse(Conn, "insert_allow_role", "insert into auth_hub.allow_roles (subsystem, role, description) values ($1, $2, $3)", [varchar, varchar, varchar]),
+    {ok, _} = epgsql:parse(Conn, "delete_allow_role", "select * from auth_hub.delete_allow_role($1, $2)", [varchar, varchar]),
+    {ok, _} = epgsql:parse(Conn, "insert_allow_subsystem", "SELECT * FROM auth_hub.create_subsystem($1, $2)", [varchar, varchar]),
+    {ok, _} = epgsql:parse(Conn, "delete_subsystem", "select * from auth_hub.delete_subsystem($1)", [varchar]),
 
     ok.
 

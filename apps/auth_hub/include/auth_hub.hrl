@@ -32,8 +32,8 @@
 -define(RESP_FAIL_USERS(Login, Result), #{<<"login">> => Login, <<"saccess">> => false, <<"result">> => Result}).
 -define(RESP_FAIL(Info), #{<<"fail">> => #{<<"info">> => Info}}).
 
--define(SQL_DELETE_SIDS, "DELETE FROM sids WHERE").
--define(SQL_DELETE_ROLES(Login, SubSys, Space), "DELETE FROM roles WHERE login='" ++ Login ++ "' and subsystem='" ++ SubSys ++ "' and space='" ++ Space ++ "' and (").
--define(SQL_INSERT_ROLES, "INSERT INTO roles (login, subsystem, role, space) values ").
--define(SQL_INIT_SIDS, "SELECT sid, login, null, ts_end FROM sids").
--define(SQL_INIT_SUBSYS, "SELECT subsystem FROM allow_subsystems").
+-define(SQL_DELETE_SIDS, "DELETE FROM auth_hub.sids WHERE").
+-define(SQL_DELETE_ROLES(Login, SubSys, Space), "DELETE FROM auth_hub.roles WHERE login='" ++ Login ++ "' and subsystem='" ++ SubSys ++ "' and space='" ++ Space ++ "' and (").
+-define(SQL_INSERT_ROLES, "INSERT INTO auth_hub.roles (login, subsystem, role, space) values ").
+-define(SQL_INIT_SIDS, "SELECT sid, login, null, ts_end FROM auth_hub.sids").
+-define(SQL_INIT_SUBSYS, "SELECT subsystem FROM auth_hub.allow_subsystems").

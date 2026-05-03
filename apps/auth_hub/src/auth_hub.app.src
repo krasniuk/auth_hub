@@ -4,7 +4,10 @@
         {registered, []},
         {mod, {auth_hub_app, []}},
         {applications,
-            [kernel,
+            [
+                ssl,
+                inets,
+                kernel,
                 stdlib,
                 cowboy,
                 lager
