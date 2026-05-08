@@ -4,12 +4,12 @@
 -export([log/2, adding_handler/1, removing_handler/1, changing_config/3]).
 
 log(#{level := _Level, msg := {Msg, _Arg}},  Config) when is_list(Msg) ->
-  %  StrLog = lists:flatten(io_lib:format("[~p] " ++ Msg, [Level] ++ Arg)),
+  %  StrLog = lists:flatten(io_lib:format("[~tp] " ++ Msg, [Level] ++ Arg)),
   %  BinLog = unicode:characters_to_binary(StrLog, utf8),
   %  _ = news_hub_telegram:send_log(BinLog),
     Config;
 log(_Log, Config) ->
-    %io:format("nLog = ~pn~n", [Log]),
+    %io:format("nLog = ~tpn~n", [Log]),
     Config.
 
 adding_handler(Config) ->

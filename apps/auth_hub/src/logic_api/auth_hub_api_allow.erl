@@ -21,11 +21,11 @@ delete_subsystems(#{<<"subsystems">> := Subsystems}, SpacesAccess) ->
             {200, #{<<"results">> => Resp}}
     catch
         exit:{timeout, Reason} ->
-            ?LOG_ERROR("No workers in pg_pool ~p", [Reason]),
+            ?LOG_ERROR("No workers in pg_pool ~tp", [Reason]),
             {429, ?RESP_FAIL(<<"too many requests">>)}
     end;
 delete_subsystems(OtherBody, _SpacesAccess) ->
-    ?LOG_ERROR("delete_subsystems invalid request format ~p", [OtherBody]),
+    ?LOG_ERROR("delete_subsystems invalid request format ~tp", [OtherBody]),
     {422, ?RESP_FAIL(<<"invalid request format">>)}.
 
 -spec delete_subsystems(list(), pid(), list()) -> list().
@@ -38,7 +38,7 @@ delete_subsystems([SubSys | T], PgPid, SpacesAccess) ->
         true ->
             case auth_hub_pg:select(PgPid, "delete_subsystem", [SubSys]) of
                 {error, Reason} ->
-                    ?LOG_ERROR("delete_subsystems db error ~p", [Reason]),
+                    ?LOG_ERROR("delete_subsystems db error ~tp", [Reason]),
                     Resp = #{<<"success">> => false, <<"reason">> => <<"invalid db response">>, <<"subsystem">> => SubSys},
                     [Resp | delete_subsystems(T, PgPid, SpacesAccess)];
                 {ok, _, [{<<"ok">>}]} ->
@@ -47,7 +47,7 @@ delete_subsystems([SubSys | T], PgPid, SpacesAccess) ->
                     [Resp | delete_subsystems(T, PgPid, SpacesAccess)]
             end;
         false ->
-            ?LOG_ERROR("delete_subsystems no accept to space ~p", [SubSys]),
+            ?LOG_ERROR("delete_subsystems no accept to space ~tp", [SubSys]),
             Resp = #{<<"success">> => false, <<"reason">> => <<"no accept to this space">>, <<"subsystem">> => SubSys},
             [Resp | delete_subsystems(T, PgPid, SpacesAccess)]
     end.
@@ -67,11 +67,11 @@ create_subsystems(#{<<"subsystems">> := Subsystems}, SpacesAccess) when is_list(
             {200, #{<<"results">> => Resp}}
     catch
         exit:{timeout, Reason} ->
-            ?LOG_ERROR("No workers in pg_pool ~p", [Reason]),
+            ?LOG_ERROR("No workers in pg_pool ~tp", [Reason]),
             {429, ?RESP_FAIL(<<"too many requests">>)}
     end;
 create_subsystems(OtherBody, _) ->
-    ?LOG_ERROR("create_subsystems invalid request format ~p", [OtherBody]),
+    ?LOG_ERROR("create_subsystems invalid request format ~tp", [OtherBody]),
     {422, ?RESP_FAIL(<<"invalid request format">>)}.
 
 -spec create_subsys_handler(list(), pid(), list()) -> list().
@@ -81,11 +81,11 @@ create_subsys_handler([#{<<"subsystem">> := SubSys, <<"description">> := Desc} |
         true ->
             case auth_hub_pg:select(PgPid, "insert_allow_subsystem", [SubSys, Desc]) of
                 {error, {_, _, _, unique_violation, _, _} = Reason} ->
-                    ?LOG_ERROR("create_subsystems user have one of this roles, ~p", [Reason]),
+                    ?LOG_ERROR("create_subsystems user have one of this roles, ~tp", [Reason]),
                     Resp = #{<<"success">> => false, <<"reason">> => <<"subsystem exists">>, <<"subsystem">> => SubSys},
                     [Resp | create_subsys_handler(T, PgPid, SpacesAccess)];
                 {error, Reason} ->
-                    ?LOG_ERROR("create_subsystems db error ~p", [Reason]),
+                    ?LOG_ERROR("create_subsystems db error ~tp", [Reason]),
                     Resp = #{<<"success">> => false, <<"reason">> => <<"invalid db response">>, <<"subsystem">> => SubSys},
                     [Resp | create_subsys_handler(T, PgPid, SpacesAccess)];
                 {ok, _, [{<<"ok">>}]} ->
@@ -95,12 +95,12 @@ create_subsys_handler([#{<<"subsystem">> := SubSys, <<"description">> := Desc} |
                     [Resp | create_subsys_handler(T, PgPid, SpacesAccess)]
             end;
         false ->
-            ?LOG_ERROR("create_subsystems invalid params ~p", [{SubSys, Desc}]),
+            ?LOG_ERROR("create_subsystems invalid params ~tp", [{SubSys, Desc}]),
             Resp = #{<<"success">> => false, <<"reason">> => <<"invalid params">>, <<"subsystem">> => SubSys},
             [Resp | create_subsys_handler(T, PgPid, SpacesAccess)]
     end;
 create_subsys_handler([MapReq | T], PgPid, SpacesAccess) ->
-    ?LOG_ERROR("create_subsystems absent needed params, ~p", [MapReq]),
+    ?LOG_ERROR("create_subsystems absent needed params, ~tp", [MapReq]),
     MapResp = MapReq#{<<"success">> => false, <<"reason">> => <<"absent needed params">>},
     [MapResp | create_subsys_handler(T, PgPid, SpacesAccess)].
 
@@ -138,11 +138,11 @@ delete_roles(#{<<"subsys_roles">> := DelRolesMap}, SpacesAccess) when is_map(Del
             {200, #{<<"results">> => Resp}}
     catch
         exit:{timeout, Reason} ->
-            ?LOG_ERROR("No workers in pg_pool ~p", [Reason]),
+            ?LOG_ERROR("No workers in pg_pool ~tp", [Reason]),
             {429, ?RESP_FAIL(<<"too many requests">>)}
     end;
 delete_roles(OtherBody, _) ->
-    ?LOG_ERROR("delete_roles invalid request format ~p", [OtherBody]),
+    ?LOG_ERROR("delete_roles invalid request format ~tp", [OtherBody]),
     {422, ?RESP_FAIL(<<"invalid request format">>)}.
 
 
@@ -152,11 +152,11 @@ delete_roles_handler([SubSys | T], DelRolesMap, PgPid, SpacesAccess) ->
     #{SubSys := ListRoles} = DelRolesMap,
     case {lists:member(SubSys, SpacesAccess), auth_hub_tools:valid_roles(ListRoles)} of
         {false, _} ->
-            ?LOG_ERROR("delete_roles no access to space ~p", [SubSys]),
+            ?LOG_ERROR("delete_roles no access to space ~tp", [SubSys]),
             Resp = #{<<"reason">> => <<"no access to this space">>, <<"success">> => false, <<"subsystem">> => SubSys, <<"roles">> => ListRoles},
             [Resp | delete_roles_handler(T, DelRolesMap, PgPid, SpacesAccess)];
         {_, false} ->
-            ?LOG_ERROR("delete_roles invalid roles ~p, ~p", [SubSys, ListRoles]),
+            ?LOG_ERROR("delete_roles invalid roles ~tp, ~tp", [SubSys, ListRoles]),
             Resp = #{<<"reason">> => <<"invalid roles">>, <<"success">> => false, <<"subsystem">> => SubSys, <<"roles">> => ListRoles},
             [Resp | delete_roles_handler(T, DelRolesMap, PgPid, SpacesAccess)];
         {true, true} ->
@@ -173,7 +173,7 @@ delete_roles_db([<<"am">> | T], <<"authHub">> = SubSys, PgPid) ->
 delete_roles_db([Role | T], SubSys, PgPid) ->
     case auth_hub_pg:select(PgPid, "delete_allow_role", [SubSys, Role]) of
         {error, Reason} ->
-            ?LOG_ERROR("delete_roles_db db error ~p", [Reason]),
+            ?LOG_ERROR("delete_roles_db db error ~tp", [Reason]),
             Resp = #{<<"success">> => false, <<"reason">> => <<"invalid db response">>, <<"subsystem">> => SubSys, <<"role">> => Role},
             [Resp | delete_roles_db(T, SubSys, PgPid)];
         {ok, _, [{<<"ok">>}]} ->
@@ -196,11 +196,11 @@ create_roles(#{<<"roles">> := RolesList}, SpacesAccess) when is_list(RolesList) 
             {200, #{<<"results">> => Resp}}
     catch
         exit:{timeout, Reason} ->
-            ?LOG_ERROR("No workers in pg_pool ~p", [Reason]),
+            ?LOG_ERROR("No workers in pg_pool ~tp", [Reason]),
             {429, ?RESP_FAIL(<<"too many requests">>)}
     end;
 create_roles(OtherBody, _) ->
-    ?LOG_ERROR("create_roles invalid request format ~p", [OtherBody]),
+    ?LOG_ERROR("create_roles invalid request format ~tp", [OtherBody]),
     {422, ?RESP_FAIL(<<"invalid request format">>)}.
 
 
@@ -211,12 +211,12 @@ create_roles_handler([#{<<"role">> := Role, <<"subsystem">> := SubSys, <<"descri
         true ->
             case auth_hub_pg:insert(PgPid, "insert_allow_role", [SubSys, Role, Desc]) of
                 {error, {_, _, _, unique_violation, _, _} = Reason} ->
-                    ?LOG_ERROR("create_roles user have one of this roles, ~p", [Reason]),
+                    ?LOG_ERROR("create_roles user have one of this roles, ~tp", [Reason]),
                     Resp = #{<<"success">> => false, <<"reason">> => <<"role exists">>,
                         <<"role">> => Role, <<"subsystem">> => SubSys},
                     [Resp | create_roles_handler(T, PgPid, SpacesAccess)];
                 {error, Reason} ->
-                    ?LOG_ERROR("create_roles_handler db error ~p", [Reason]),
+                    ?LOG_ERROR("create_roles_handler db error ~tp", [Reason]),
                     Resp = #{<<"success">> => false, <<"reason">> => <<"invalid db response">>,
                         <<"role">> => Role, <<"subsystem">> => SubSys},
                     [Resp | create_roles_handler(T, PgPid, SpacesAccess)];
@@ -225,18 +225,18 @@ create_roles_handler([#{<<"role">> := Role, <<"subsystem">> := SubSys, <<"descri
                     [Resp | create_roles_handler(T, PgPid, SpacesAccess)]
             end;
         no_access ->
-            ?LOG_ERROR("create_roles_handler no access to space ~p", [{SubSys}]),
+            ?LOG_ERROR("create_roles_handler no access to space ~tp", [{SubSys}]),
             Resp = #{<<"success">> => false, <<"reason">> => <<"no access to this space">>,
                 <<"role">> => Role, <<"subsystem">> => SubSys},
             [Resp | create_roles_handler(T, PgPid, SpacesAccess)];
         false ->
-            ?LOG_ERROR("create_roles_handler invalid params ~p", [{Role, SubSys, Desc}]),
+            ?LOG_ERROR("create_roles_handler invalid params ~tp", [{Role, SubSys, Desc}]),
             Resp = #{<<"success">> => false, <<"reason">> => <<"invalid params">>,
                 <<"role">> => Role, <<"subsystem">> => SubSys},
             [Resp | create_roles_handler(T, PgPid, SpacesAccess)]
     end;
 create_roles_handler([MapReq | T], PgPid, SpacesAccess) ->
-    ?LOG_ERROR("create_roles_handler absent needed params ~p", [MapReq]),
+    ?LOG_ERROR("create_roles_handler absent needed params ~tp", [MapReq]),
     MapResp = MapReq#{<<"success">> => false, <<"reason">> => <<"absent needed params">>},
     [MapResp | create_roles_handler(T, PgPid, SpacesAccess)].
 
@@ -255,7 +255,7 @@ get_allow_roles(SpacesAccess) ->
             Resp
     catch
         exit:{timeout, Reason} ->
-            ?LOG_ERROR("No workers in pg_pool ~p", [Reason]),
+            ?LOG_ERROR("No workers in pg_pool ~tp", [Reason]),
             {429, ?RESP_FAIL(<<"too many requests">>)}
     end.
 
@@ -263,13 +263,13 @@ get_allow_roles(SpacesAccess) ->
 get_allow_roles(PgPid, SpacesAccess) ->
     case auth_hub_pg:select(PgPid, "get_allow_roles", []) of
         {error, Reason} ->
-            ?LOG_ERROR("get_allow_roles db error ~p", [Reason]),
+            ?LOG_ERROR("get_allow_roles db error ~tp", [Reason]),
             {502, ?RESP_FAIL(<<"invalid db response">>)};
         {ok, _, DbValues} ->
             MapAllRoles = parse_allow_roles(DbValues, #{}),
             case auth_hub_pg:select(PgPid, "get_allow_subsystem", []) of
                 {error, Reason} ->
-                    ?LOG_ERROR("get_allow_roles db error ~p", [Reason]),
+                    ?LOG_ERROR("get_allow_roles db error ~tp", [Reason]),
                     {502, ?RESP_FAIL(<<"invalid db response">>)};
                 {ok, _, DbValues1} ->
                     MapResp = parse_allow_subsystems(DbValues1, MapAllRoles, SpacesAccess),

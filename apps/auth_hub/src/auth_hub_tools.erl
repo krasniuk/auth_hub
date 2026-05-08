@@ -75,7 +75,7 @@ validation(create_subsystems, {SubSys, Desc, SpacesAccess}) when is_binary(SubSy
     VSubSys = {match, [{0, byte_size(SubSys)}]} =:= re:run(SubSys, "[a-zA-Z_\\d]{1,50}", []),
     VDesc = {match, [{0, byte_size(Desc)}]} =:= re:run(Desc, "[a-zA-Z-:=+,.()\/@#{}'' \\d]{0,100}", []),
     VAuth = lists:member(<<"authHub">>, SpacesAccess),
-    %?LOG_DEBUG("VSubSys = ~p, VDesc = ~p", [VSubSys, VDesc]),
+    %?LOG_DEBUG("VSubSys = ~tp, VDesc = ~tp", [VSubSys, VDesc]),
     VSubSys and VDesc and VAuth;
 validation(create_roles, {SubSys, Role, Desc, SpacesAccess}) when is_binary(SubSys) and is_binary(Role) and is_binary(Desc) ->
     VRole = {match, [{0, byte_size(Role)}]} =:= re:run(Role, "[a-z]{2}", []),

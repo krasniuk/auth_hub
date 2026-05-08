@@ -16,23 +16,23 @@ init(Req, [ActionKey]) ->
 handle_post(<<"POST">>, true, Req, get_roles) ->
     {ok, Body, _Req} = cowboy_req:read_body(Req),
     Sid = cowboy_req:header(<<"sid">>, Req, undefined),
-    ?LOG_DEBUG("Post request ~p", [Body]),
+    ?LOG_DEBUG("Post request ~tp", [Body]),
     {HttpCode, RespMap} = handle_req(Body, Sid),
-    ?LOG_DEBUG("Post reply ~p", [HttpCode]),
+    ?LOG_DEBUG("Post reply ~tp", [HttpCode]),
     RespBody = jsone:encode(RespMap),
     cowboy_req:reply(HttpCode, #{<<"content-type">> => <<"application/json; charset=UTF-8">>}, RespBody, Req);
 handle_post(<<"GET">>, _, Req, get_ldap) ->
     Sid = cowboy_req:header(<<"sid">>, Req, undefined),
-    ?LOG_DEBUG("Get request get_ldap, sid  ~p", [<<Sid:4/binary, "...">>]),
+    ?LOG_DEBUG("Get request get_ldap, sid  ~tp", [<<Sid:4/binary, "...">>]),
     {HttpCode, RespMap} = handle_req(Sid),
-    ?LOG_DEBUG("Get reply ~p", [HttpCode]),
+    ?LOG_DEBUG("Get reply ~tp", [HttpCode]),
     RespBody = jsone:encode(RespMap),
     cowboy_req:reply(HttpCode, #{<<"content-type">> => <<"application/json; charset=UTF-8">>}, RespBody, Req);
 handle_post(<<"POST">>, false, Req, _ActionKey) ->
-    ?LOG_ERROR("Missing body ~p~n", [Req]),
+    ?LOG_ERROR("Missing body ~tp~n", [Req]),
     cowboy_req:reply(400, #{}, <<"Missing body.">>, Req);
 handle_post(Method, _, Req, _ActionKey) ->
-    ?LOG_ERROR("Method ~p not allowed ~p~n", [Method, Req]),
+    ?LOG_ERROR("Method ~tp not allowed ~tp~n", [Method, Req]),
     cowboy_req:reply(405, Req).
 
 -spec handle_req(binary(), binary()|undefined) -> {integer(), map()}.
@@ -57,7 +57,7 @@ handle_req(Body, Sid) ->
 handle_body(Body, RolesMap) ->
     case jsone:try_decode(Body) of
         {error, Reason} ->
-            ?LOG_ERROR("Decode error, ~p", [Reason]),
+            ?LOG_ERROR("Decode error, ~tp", [Reason]),
             {400, ?RESP_FAIL(<<"invalid request format">>)};
         {ok, #{<<"subsystem">> := <<"authHub">>}, _} ->
             RolesList = maps:get(<<"authHub">>, RolesMap, []),
@@ -71,7 +71,7 @@ handle_body(Body, RolesMap) ->
                     {400, ?RESP_FAIL(<<"invalid param subsystem">>)}
             end;
         {ok, OtherMap, _} ->
-            ?LOG_ERROR("Absent needed params ~p", [OtherMap]),
+            ?LOG_ERROR("Absent needed params ~tp", [OtherMap]),
             {422, ?RESP_FAIL(<<"absent needed params">>)}
     end.
 

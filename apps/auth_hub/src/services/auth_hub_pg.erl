@@ -19,7 +19,7 @@ start_link(Args) ->
 get_roles(Login) ->
     case auth_hub_pg:select("get_roles", [Login]) of
         {error, Reason} ->
-            ?LOG_ERROR("Get roles from db error, ~p", [Reason]),
+            ?LOG_ERROR("Get roles from db error, ~tp", [Reason]),
             null;
         {ok, _Colon, RespDb} ->
             convert_roles_from_db(RespDb, #{})
@@ -65,7 +65,7 @@ select(Statement, Args) ->
             Reply
     catch
         exit:{timeout, Reason} ->
-            ?LOG_ERROR("Error, no workers in pg_pool ~p", [Reason]),
+            ?LOG_ERROR("Error, no workers in pg_pool ~tp", [Reason]),
             {error, {timeout_pull, <<"too many requests">>}}
     end.
 
@@ -81,7 +81,7 @@ insert(Statement, Args) ->
             Reply
     catch
         exit:{timeout, Reason} ->
-            ?LOG_ERROR("Error, no workers in pg_pool ~p", [Reason]),
+            ?LOG_ERROR("Error, no workers in pg_pool ~tp", [Reason]),
             {error, {timeout_pull, <<"too many requests">>}}
     end.
 
@@ -100,7 +100,7 @@ delete(Statement, Args) ->
             Reply
     catch
         exit:{timeout, Reason} ->
-            ?LOG_ERROR("Error, no workers in pg_pool ~p", [Reason]),
+            ?LOG_ERROR("Error, no workers in pg_pool ~tp", [Reason]),
             {error, {timeout_pull, <<"too many requests">>}}
     end.
 
@@ -120,7 +120,7 @@ sql_req_not_prepared(Sql, Args) ->
             DbResp
     catch
         exit:{timeout, Reason} ->
-            ?LOG_ERROR("Error, no workers in pg_pool ~p", [Reason]),
+            ?LOG_ERROR("Error, no workers in pg_pool ~tp", [Reason]),
             {error, {timeout_pull, <<"too many requests">>}}
     end.
 
@@ -168,17 +168,17 @@ handle_call({sql_req_not_prepared, Sql, Args}, _From, State) ->
     #{connection := Conn} = State,
     Resp = case epgsql:equery(Conn, Sql, Args) of
                {error, Reason} ->
-                   ?LOG_ERROR("PostgreSQL sql_req_not_prepared error, ~p, ~p", [Sql, Reason]),
+                   ?LOG_ERROR("PostgreSQL sql_req_not_prepared error, ~tp, ~tp", [Sql, Reason]),
                    {error, Reason};
                RespOk -> RespOk
            end,
     {reply, Resp, State};
 handle_call(Other, _From, State) ->
-    ?LOG_CRITICAL("Invalid call to gen_server(auth_hub_pg) ~p", [Other]),
+    ?LOG_CRITICAL("Invalid call to gen_server(auth_hub_pg) ~tp", [Other]),
     {reply, <<"Invalid req">>, State}.
 
 handle_cast(Data, State) ->
-    ?LOG_CRITICAL("handle_cast invalid req ~p", [Data]),
+    ?LOG_CRITICAL("handle_cast invalid req ~tp", [Data]),
     {noreply, State}.
 
 handle_info(connect, #{connect_arg := Arg, timer_connect := TConn} = State) ->
@@ -189,12 +189,12 @@ handle_info(connect, #{connect_arg := Arg, timer_connect := TConn} = State) ->
             ?LOG_INFO("Successful connect to db. Parse OK", []),
             {noreply, State#{connection := Pid}};
         {error, Reason} ->
-            ?LOG_ERROR("Db connect error, ~p", [Reason]),
+            ?LOG_ERROR("Db connect error, ~tp", [Reason]),
             TConn1 = erlang:send_after(1000, self(), connect),
             {noreply, State#{connection := undefined, timer_connect := TConn1}}
     end;
 handle_info(Data, State) ->
-    ?LOG_CRITICAL("handle_info invalid req ~p", [Data]),
+    ?LOG_CRITICAL("handle_info invalid req ~tp", [Data]),
     {noreply, State}.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -228,7 +228,7 @@ parse(Conn) ->
 sql_req_prepared(Conn, Statement, Args) ->
     case epgsql:prepared_query(Conn, Statement, Args) of
         {error, Error} ->
-            ?LOG_ERROR("PostgreSQL prepared_query error(~p): ~p~n", [Statement, Error]),
+            ?LOG_ERROR("PostgreSQL prepared_query error(~tp): ~tp~n", [Statement, Error]),
             {error, Error};
         Other -> Other
     end.

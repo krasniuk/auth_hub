@@ -22,25 +22,25 @@ init(Req, [check_sid] = Opts) ->
 handle_post(<<"POST">>, true, Req) ->
     handle_req(Req);
 handle_post(<<"POST">>, false, Req) ->
-    ?LOG_ERROR("Missing body ~p~n", [Req]),
+    ?LOG_ERROR("Missing body ~tp~n", [Req]),
     cowboy_req:reply(400, #{}, <<"Missing body.">>, Req);
 handle_post(Method, _, Req) ->
-    ?LOG_ERROR("Method ~p not allowed ~p~n", [Method, Req]),
+    ?LOG_ERROR("Method ~tp not allowed ~tp~n", [Method, Req]),
     cowboy_req:reply(405, Req).
 
 handle_req(Req) ->
     {ok, Body, _Req} = cowboy_req:read_body(Req),
-    ?LOG_DEBUG("Post request ~p", [Body]),
+    ?LOG_DEBUG("Post request ~tp", [Body]),
     {Status, RespMap} = handle_body(Body),
     RespBody = jsone:encode(RespMap),
-    ?LOG_DEBUG("Post reply ~p", [Status]),
+    ?LOG_DEBUG("Post reply ~tp", [Status]),
     cowboy_req:reply(Status, #{<<"content-type">> => <<"application/json; charset=UTF-8">>}, RespBody, Req).
 
 -spec handle_body(binary()) -> {integer(), map()}.
 handle_body(Body) ->
     case jsone:try_decode(Body) of
         {error, Reason} ->
-            ?LOG_ERROR("Decode error, ~p", [Reason]),
+            ?LOG_ERROR("Decode error, ~tp", [Reason]),
             {400, ?RESP_FAIL(<<"invalid request format">>)};
         {ok, #{<<"login">> := Login, <<"pass">> := PassWord}, _} ->
             get_session(Login, PassWord);
@@ -53,7 +53,7 @@ handle_body(Body) ->
 get_session(Login, PassWord) ->
     case auth_hub_pg:select("get_passhash", [Login]) of
         {error, Reason} ->
-            ?LOG_ERROR("Db error ~p", [Reason]),
+            ?LOG_ERROR("Db error ~tp", [Reason]),
             {403, ?RESP_FAIL(<<"invalid password or login">>)};
         {ok, _, [{PermitHash}]} ->
             [{salt, Salt}] = ets:lookup(opts, salt),
@@ -73,7 +73,7 @@ get_session(Login, PassWord) ->
                             {200, ?RESP_SUCCESS_SID(Sid, TsStart, TsEnd)}
                     end;
                 false ->
-                    ?LOG_ERROR("Invalid password ~p, login ~p", [PassWord, Login]),
+                    ?LOG_ERROR("Invalid password ~tp, login ~tp", [PassWord, Login]),
                     {403, ?RESP_FAIL(<<"invalid password or login">>)}
             end;
         {ok, _, []} ->
@@ -104,7 +104,7 @@ create_sid(Login, DateEnd) ->
             true = ets:insert(sids_cache, {Sid, Login, RolesTab, DateEnd}),
             Sid;
         {{error, Reason}, _} ->
-            ?LOG_ERROR("Db error, insert('insert_sid', [~p, ~p, ~p, ~p]), reason ~p", [Login, Sid, DateEnd, Reason]),
+            ?LOG_ERROR("Db error, insert('insert_sid', [~tp, ~tp, ~tp, ~tp]), reason ~tp", [Login, Sid, DateEnd, Reason]),
             error
     end.
 
@@ -128,7 +128,7 @@ handle_get(<<"GET">>, Req) ->
     RespBody = jsone:encode(RespBodyMap),
     cowboy_req:reply(HttpCode, #{<<"content-type">> => <<"application/json; charset=UTF-8">>}, RespBody, Req);
 handle_get(Method, Req) ->
-    ?LOG_ERROR("Method ~p not allowed ~p~n", [Method, Req]),
+    ?LOG_ERROR("Method ~tp not allowed ~tp~n", [Method, Req]),
     cowboy_req:reply(405, Req).
 
 -spec handle_get_req(map()) -> {integer(), map()}.
@@ -159,7 +159,7 @@ qs_to_proplist([H|T], Result) ->
         [Key, Value] ->
             qs_to_proplist(T, Result ++ [{Key, Value}]);
         Other ->
-            ?LOG_ERROR("Invalid params in api ~p", [Other]),
+            ?LOG_ERROR("Invalid params in api ~tp", [Other]),
             error
     end.
 

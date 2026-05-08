@@ -48,7 +48,7 @@ handle_info(initialization, #{initialization_t := OldTimer, worker_pid := Worker
                        save_to_ets(DbRespSid, DbRespSubSys, WorkerPid)
                catch
                    exit:{timeout, Reason} ->
-                       ?LOG_ERROR("download_sids no workers in pg_pool ~p", [Reason]),
+                       ?LOG_ERROR("download_sids no workers in pg_pool ~tp", [Reason]),
                        erlang:send_after(2000, WorkerPid, initialization)
                end,
     {noreply, State#{initialization_t := NewTimer}};
@@ -64,13 +64,13 @@ handle_info(delete_legacy_sids, #{delete_legacy_sids_t := OldTimer, worker_pid :
             case auth_hub_pg:sql_req_not_prepared(Sql, SidsDelete) of
                 {ok, LenDelSids} ->
                     delete_sids(sids_cache, SidsDelete),
-                    ?LOG_DEBUG("delete_legacy_sids delete sids ~p", [SidsDelete]);
+                    ?LOG_DEBUG("delete_legacy_sids delete sids ~tp", [SidsDelete]);
                 {ok, OtherDeleted} ->
-                    ?LOG_WARNING("delete_legacy_sids delete not all sids in db ~p, ~p", [OtherDeleted, LenDelSids]),
+                    ?LOG_WARNING("delete_legacy_sids delete not all sids in db ~tp, ~tp", [OtherDeleted, LenDelSids]),
                     delete_sids(sids_cache, SidsDelete),
-                    ?LOG_DEBUG("delete_legacy_sids delete sids ~p", [SidsDelete]);
+                    ?LOG_DEBUG("delete_legacy_sids delete sids ~tp", [SidsDelete]);
                 {error, Reason} ->
-                    ?LOG_ERROR("delete_legacy_sids can't send req, ~p", [Reason])
+                    ?LOG_ERROR("delete_legacy_sids can't send req, ~tp", [Reason])
             end
     end,
     NewTimer = erlang:send_after(600000, WorkerPid, delete_legacy_sids),
@@ -89,10 +89,10 @@ terminate(_, _State) ->
 
 -spec save_to_ets(list(), list(), pid()) -> null | reference().
 save_to_ets(_, {error, ReasonSubSys}, WorkerPid) ->
-    ?LOG_ERROR("initialization get_subsys internal error ~p", [ReasonSubSys]),
+    ?LOG_ERROR("initialization get_subsys internal error ~tp", [ReasonSubSys]),
     erlang:send_after(2000, WorkerPid, initialization);
 save_to_ets({error, ReasonSid}, _, WorkerPid) ->
-    ?LOG_ERROR("initialization get_sids internal error ~p", [ReasonSid]),
+    ?LOG_ERROR("initialization get_sids internal error ~tp", [ReasonSid]),
     erlang:send_after(2000, WorkerPid, initialization);
 save_to_ets({ok, _, DbRespSid}, {ok, _, DbRespSubSys}, _WorkerPid) ->
     EtsSids = parse_sids(DbRespSid),
