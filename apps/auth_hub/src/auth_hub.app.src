@@ -9,8 +9,7 @@
                 inets,
                 kernel,
                 stdlib,
-                cowboy,
-                lager
+                cowboy
             ]},
         {env, []},
         {modules, []},
