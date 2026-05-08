@@ -3,6 +3,10 @@
 -include_lib("kernel/include/logger.hrl").
 
 -define(SERVICE_SUBSYSTEM, <<"authHub">>).
+
+%% am - admin master
+%% la - local admin
+%% cr - create roles
 -define(API_PERMIT_ROLES, #{
     {<<>>,                    <<"/allow/subsystems/roles/info">>} => [<<"am">>, <<"la">>, <<"si">>],
     {<<"create_roles">>,      <<"/allow/roles/change">>} =>          [<<"am">>, <<"la">>, <<"cr">>],

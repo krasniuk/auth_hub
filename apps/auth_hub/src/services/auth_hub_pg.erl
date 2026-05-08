@@ -60,7 +60,7 @@ select(Statement, Args) ->
             ?LOG_ERROR("No workers in pg_pool", []),
             {error, {timeout_pull, <<"too many requests">>}};
         WorkerPid ->
-            Reply = gen_server:call(WorkerPid, {select, Statement, Args}),
+            Reply = gen_server:call(WorkerPid, {select, Statement, Args}, {timeout, 5000}),
             ok = poolboy:checkin(pg_pool, WorkerPid),
             Reply
     catch
@@ -144,7 +144,8 @@ init(Args) ->
     TConn = erlang:send_after(10, self(), connect),
     {ok, #{connect_arg => Args,
         timer_connect => TConn,
-        connection => undefined}}.
+        timer_check_connect => undefined,
+        db_sender_pid => undefined}}.
 
 terminate(_, _State) ->
     ok.
@@ -152,27 +153,26 @@ terminate(_, _State) ->
 handle_call(_, _, #{connection := undefined} = State) ->
     ?LOG_ERROR("auth_hub_pg: no connect to db", []),
     {reply, {error, no_connect}, State};
-handle_call({insert, Statement, Args}, _From, State) ->
-    #{connection := Conn} = State,
-    Reply = sql_req_prepared(Conn, Statement, Args),
-    {reply, Reply, State};
-handle_call({select, Statement, Args}, _From, State) ->
-    #{connection := Conn} = State,
-    Reply = sql_req_prepared(Conn, Statement, Args),
-    {reply, Reply, State};
-handle_call({delete, Statement, Args}, _From, State) ->
-    #{connection := Conn} = State,
-    Reply = sql_req_prepared(Conn, Statement, Args),
-    {reply, Reply, State};
-handle_call({sql_req_not_prepared, Sql, Args}, _From, State) ->
-    #{connection := Conn} = State,
-    Resp = case epgsql:equery(Conn, Sql, Args) of
-               {error, Reason} ->
-                   ?LOG_ERROR("PostgreSQL sql_req_not_prepared error, ~tp, ~tp", [Sql, Reason]),
-                   {error, Reason};
-               RespOk -> RespOk
-           end,
-    {reply, Resp, State};
+handle_call({insert, Statement, Args}, _From, #{db_sender_pid := DbSenderPid, timer_check_connect := TCheck} = State) ->
+    _ = erlang:cancel_timer(TCheck),
+    Reply = send_pg_req({sql_prepared_query, Statement, Args}, DbSenderPid),
+    TCheck1 = erlang:send_after(60000, self(), check_connection),
+    {reply, Reply, State#{timer_check_connect := TCheck1}};
+handle_call({select, Statement, Args}, _From, #{db_sender_pid := DbSenderPid, timer_check_connect := TCheck} = State) ->
+    _ = erlang:cancel_timer(TCheck),
+    Reply = send_pg_req({sql_prepared_query, Statement, Args}, DbSenderPid),
+    TCheck1 = erlang:send_after(60000, self(), check_connection),
+    {reply, Reply, State#{timer_check_connect := TCheck1}};
+handle_call({delete, Statement, Args}, _From, #{db_sender_pid := DbSenderPid, timer_check_connect := TCheck} = State) ->
+    _ = erlang:cancel_timer(TCheck),
+    Reply = send_pg_req({sql_prepared_query, Statement, Args}, DbSenderPid),
+    TCheck1 = erlang:send_after(60000, self(), check_connection),
+    {reply, Reply, State#{timer_check_connect := TCheck1}};
+handle_call({sql_req_not_prepared, Sql, Args}, _From, #{db_sender_pid := DbSenderPid, timer_check_connect := TCheck} = State) ->
+    _ = erlang:cancel_timer(TCheck),
+    Resp = send_pg_req({sql_request, Sql, Args}, DbSenderPid),
+    TCheck1 = erlang:send_after(60000, self(), check_connection),
+    {reply, Resp, State#{timer_check_connect := TCheck1}};
 handle_call(Other, _From, State) ->
     ?LOG_CRITICAL("Invalid call to gen_server(auth_hub_pg) ~tp", [Other]),
     {reply, <<"Invalid req">>, State}.
@@ -183,16 +183,27 @@ handle_cast(Data, State) ->
 
 handle_info(connect, #{connect_arg := Arg, timer_connect := TConn} = State) ->
     _ = erlang:cancel_timer(TConn),
-    case epgsql:connect(Arg ++ [{timeout, 5000}]) of
+    case epgsql:connect(Arg ++ [{timeout, 1000}]) of
         {ok, Pid} ->
-            parse(Pid),
-            ?LOG_INFO("Successful connect to db. Parse OK", []),
-            {noreply, State#{connection := Pid}};
+            {ok, PidDbSender} = auth_hub_pg_sender:start_link(Pid),
+            TCheck = erlang:send_after(60000, self(), check_connection),
+            {noreply, State#{db_sender_pid := PidDbSender, timer_check_connect := TCheck}};
         {error, Reason} ->
             ?LOG_ERROR("Db connect error, ~tp", [Reason]),
             TConn1 = erlang:send_after(1000, self(), connect),
-            {noreply, State#{connection := undefined, timer_connect := TConn1}}
+            {noreply, State#{db_sender_pid := undefined, timer_connect := TConn1}}
     end;
+handle_info(check_connection, #{timer_check_connect := TCheck, db_sender_pid := DbSenderPid} = State) ->
+    _ = erlang:cancel_timer(TCheck),
+    case auth_hub_pg_sender:sql_request(DbSenderPid, "select 0", []) of
+        {ok, _Column, [{0}]} ->
+            %?LOG_DEBUG("db check_connection ok", []),
+            ok;
+        {error, Reason} ->
+            ?LOG_ERROR("Pg timer check_connection, invalid db response ~p", [Reason])
+    end,
+    TCheck1 = erlang:send_after(60000, self(), check_connection),
+    {noreply, State#{timer_check_connect := TCheck1}};
 handle_info(Data, State) ->
     ?LOG_CRITICAL("handle_info invalid req ~tp", [Data]),
     {noreply, State}.
@@ -224,11 +235,14 @@ parse(Conn) ->
 
     ok.
 
--spec sql_req_prepared(pid(), list(), list()) -> {error, term()} | {ok, Colon::list(), Val::list()} | {ok, integer()}.
-sql_req_prepared(Conn, Statement, Args) ->
-    case epgsql:prepared_query(Conn, Statement, Args) of
-        {error, Error} ->
-            ?LOG_ERROR("PostgreSQL prepared_query error(~tp): ~tp~n", [Statement, Error]),
-            {error, Error};
-        Other -> Other
-    end.
+-spec send_pg_req(tuple(), pid()) -> tuple() | ok.
+send_pg_req({sql_prepared_query, Query, Args}, DbSenderPid) ->
+    auth_hub_pg_sender:sql_prepared_query(DbSenderPid, Query, Args);
+send_pg_req({sql_request, Query, Args}, DbSenderPid) ->
+    auth_hub_pg_sender:sql_request(DbSenderPid, Query, Args);
+send_pg_req({atomic_transaction, ListReq}, DbSenderPid) ->
+    auth_hub_pg_sender:atomic_transaction(DbSenderPid, length(ListReq), ListReq);
+send_pg_req(Msg, _DbSenderPid) ->
+    ?LOG_ERROR("Unknown cast msg pg ~p", [Msg]),
+    ok.
+
