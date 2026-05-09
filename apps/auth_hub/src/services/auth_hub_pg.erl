@@ -60,7 +60,7 @@ select(Statement, Args) ->
             ?LOG_ERROR("No workers in pg_pool", []),
             {error, {timeout_pull, <<"too many requests">>}};
         WorkerPid ->
-            Reply = gen_server:call(WorkerPid, {select, Statement, Args}, {timeout, 5000}),
+            Reply = gen_server:call(WorkerPid, {select, Statement, Args}, 5000),
             ok = poolboy:checkin(pg_pool, WorkerPid),
             Reply
     catch
@@ -197,7 +197,7 @@ handle_info(check_connection, #{timer_check_connect := TCheck, db_sender_pid := 
     _ = erlang:cancel_timer(TCheck),
     case auth_hub_pg_sender:sql_request(DbSenderPid, "select 0", []) of
         {ok, _Column, [{0}]} ->
-            %?LOG_DEBUG("db check_connection ok", []),
+            ?LOG_DEBUG("db check_connection ok", []),
             ok;
         {error, Reason} ->
             ?LOG_ERROR("Pg timer check_connection, invalid db response ~p", [Reason])
@@ -215,25 +215,6 @@ code_change(_OldVsn, State, _Extra) ->
 % ====================================================
 % Help-functions for inverse functions
 % ====================================================
-
--spec parse(pid()) -> ok.
-parse(Conn) ->
-    {ok, _} = epgsql:parse(Conn, "get_passhash", "SELECT passhash FROM auth_hub.users WHERE login=$1", [varchar]),
-    {ok, _} = epgsql:parse(Conn, "insert_sid", "INSERT INTO auth_hub.sids (login, sid, ts_end) VALUES ($1, $2, $3)", [varchar, varchar, timestamp]),
-    {ok, _} = epgsql:parse(Conn, "get_roles", "SELECT subsystem, role, space FROM auth_hub.roles WHERE login=$1", [varchar]),
-    {ok, _} = epgsql:parse(Conn, "update_sid", "UPDATE auth_hub.sids SET sid=$2, ts_end=$3 WHERE login=$1", [varchar, varchar, timestamp]),
-    {ok, _} = epgsql:parse(Conn, "delete_user", "SELECT * FROM auth_hub.delete_user($1)", [varchar]),
-
-    {ok, _} = epgsql:parse(Conn, "create_user", "INSERT INTO auth_hub.users (login, passhash) VALUES ($1, $2)", [varchar, varchar]),
-    {ok, _} = epgsql:parse(Conn, "get_users_all_info", "SELECT u.login, r.subsystem, r.role, r.space FROM auth_hub.roles r RIGHT OUTER JOIN auth_hub.users u ON r.login = u.login", []),
-    {ok, _} = epgsql:parse(Conn, "get_allow_roles", "SELECT s.subsystem, r.role, r.description FROM auth_hub.allow_roles r RIGHT OUTER JOIN auth_hub.allow_subsystems s ON r.subsystem = s.subsystem", []),
-    {ok, _} = epgsql:parse(Conn, "get_allow_subsystem", "SELECT subsystem, description FROM auth_hub.allow_subsystems", []),
-    {ok, _} = epgsql:parse(Conn, "insert_allow_role", "insert into auth_hub.allow_roles (subsystem, role, description) values ($1, $2, $3)", [varchar, varchar, varchar]),
-    {ok, _} = epgsql:parse(Conn, "delete_allow_role", "select * from auth_hub.delete_allow_role($1, $2)", [varchar, varchar]),
-    {ok, _} = epgsql:parse(Conn, "insert_allow_subsystem", "SELECT * FROM auth_hub.create_subsystem($1, $2)", [varchar, varchar]),
-    {ok, _} = epgsql:parse(Conn, "delete_subsystem", "select * from auth_hub.delete_subsystem($1)", [varchar]),
-
-    ok.
 
 -spec send_pg_req(tuple(), pid()) -> tuple() | ok.
 send_pg_req({sql_prepared_query, Query, Args}, DbSenderPid) ->
